@@ -9,20 +9,20 @@ const menuData: Menu[] = [
   },
   {
     id: 2,
-    title: "About",
-    path: "/about",
+    title: "Sentra Core",
+    path: "/sentra-core",
     newTab: false,
   },
   {
     id: 33,
-    title: "Blog",
-    path: "/blog",
+    title: "Iron Gate",
+    path: "/iron-gate",
     newTab: false,
   },
   {
     id: 3,
-    title: "Support",
-    path: "/contact",
+    title: "Sensor Grid",
+    path: "/sensor-grid",
     newTab: false,
   },
   {
@@ -32,34 +32,34 @@ const menuData: Menu[] = [
     submenu: [
       {
         id: 41,
-        title: "About Page",
-        path: "/about",
+        title: "Sentra Core",
+        path: "/sentra-core",
         newTab: false,
       },
       {
         id: 42,
-        title: "Contact Page",
-        path: "/contact",
+        title: "Sensor Grid",
+        path: "/sensor-grid",
         newTab: false,
       },
       {
         id: 43,
-        title: "Blog Grid Page",
-        path: "/blog",
+        title: "Iron Gate",
+        path: "/iron-gate",
         newTab: false,
       },
-      {
-        id: 44,
-        title: "Blog Sidebar Page",
-        path: "/blog-sidebar",
-        newTab: false,
-      },
-      {
-        id: 45,
-        title: "Blog Details Page",
-        path: "/blog-details",
-        newTab: false,
-      },
+      // {
+      //   id: 44,
+      //   title: "IronGate Sidebar Page",
+      //   path: "/IronGate-sidebar",
+      //   newTab: false,
+      // },
+      // {
+      //   id: 45,
+      //   title: "IronGate Details Page",
+      //   path: "/IronGate-details",
+      //   newTab: false,
+      // },
       {
         id: 46,
         title: "Sign In Page",
@@ -72,12 +72,12 @@ const menuData: Menu[] = [
         path: "/signup",
         newTab: false,
       },
-      {
-        id: 48,
-        title: "Error Page",
-        path: "/error",
-        newTab: false,
-      },
+      // {
+      //   id: 48,
+      //   title: "Error Page",
+      //   path: "/error",
+      //   newTab: false,
+      // },
     ],
   },
 ];

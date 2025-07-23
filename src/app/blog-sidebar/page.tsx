@@ -1,18 +1,18 @@
-import RelatedPost from "@/components/Blog/RelatedPost";
-import SharePost from "@/components/Blog/SharePost";
-import TagButton from "@/components/Blog/TagButton";
-import NewsLatterBox from "@/components/Contact/NewsLatterBox";
+import RelatedPost from "@/components/IronGate/RelatedPost";
+import SharePost from "@/components/IronGate/SharePost";
+import TagButton from "@/components/IronGate/TagButton";
+import NewsLatterBox from "@/components/SensorGrid/NewsLatterBox";
 import Image from "next/image";
 
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Blog Details Page | Free Next.js Template for Startup and SaaS",
-  description: "This is Blog Details Page for Startup Nextjs Template",
+  title: "IronGate Details Page | Free Next.js Template for Startup and SaaS",
+  description: "This is IronGate Details Page for Startup Nextjs Template",
   // other metadata
 };
 
-const BlogSidebarPage = () => {
+const IronGateSidebarPage = () => {
   return (
     <>
       <section className="overflow-hidden pt-[180px] pb-[120px]">
@@ -30,7 +30,7 @@ const BlogSidebarPage = () => {
                       <div className="mr-4">
                         <div className="relative h-10 w-10 overflow-hidden rounded-full">
                           <Image
-                            src="/images/blog/author-02.png"
+                            src="/images/IronGate/author-02.png"
                             alt="author"
                             fill
                           />
@@ -113,7 +113,7 @@ const BlogSidebarPage = () => {
                   <div className="mb-10 w-full overflow-hidden rounded-sm">
                     <div className="relative aspect-97/60 w-full sm:aspect-97/44">
                       <Image
-                        src="/images/blog/blog-details-01.jpg"
+                        src="/images/IronGate/IronGate-details-01.jpg"
                         alt="image"
                         fill
                         className="h-full w-full object-cover object-center"
@@ -376,7 +376,7 @@ const BlogSidebarPage = () => {
                   <li className="border-body-color/10 mb-6 border-b pb-6 dark:border-white/10">
                     <RelatedPost
                       title="Best way to boost your online sales."
-                      image="/images/blog/post-01.jpg"
+                      image="/images/IronGate/post-01.jpg"
                       slug="#"
                       date="12 Feb 2025"
                     />
@@ -384,7 +384,7 @@ const BlogSidebarPage = () => {
                   <li className="border-body-color/10 mb-6 border-b pb-6 dark:border-white/10">
                     <RelatedPost
                       title="50 Best web design tips & tricks that will help you."
-                      image="/images/blog/post-02.jpg"
+                      image="/images/IronGate/post-02.jpg"
                       slug="#"
                       date="15 Feb, 2024"
                     />
@@ -392,7 +392,7 @@ const BlogSidebarPage = () => {
                   <li>
                     <RelatedPost
                       title="The 8 best landing page builders, reviewed"
-                      image="/images/blog/post-03.jpg"
+                      image="/images/IronGate/post-03.jpg"
                       slug="#"
                       date="05 Jun, 2024"
                     />
@@ -468,4 +468,4 @@ const BlogSidebarPage = () => {
   );
 };
 
-export default BlogSidebarPage;
+export default IronGateSidebarPage;

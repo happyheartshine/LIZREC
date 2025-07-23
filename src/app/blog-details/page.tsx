@@ -1,16 +1,16 @@
-import SharePost from "@/components/Blog/SharePost";
-import TagButton from "@/components/Blog/TagButton";
+import SharePost from "@/components/IronGate/SharePost";
+import TagButton from "@/components/IronGate/TagButton";
 import Image from "next/image";
 
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Blog Details Page | Free Next.js Template for Startup and SaaS",
-  description: "This is Blog Details Page for Startup Nextjs Template",
+  title: "IronGate Details Page | Free Next.js Template for Startup and SaaS",
+  description: "This is IronGate Details Page for Startup Nextjs Template",
   // other metadata
 };
 
-const BlogDetailsPage = () => {
+const IronGateDetailsPage = () => {
   return (
     <>
       <section className="pt-[150px] pb-[120px]">
@@ -28,7 +28,7 @@ const BlogDetailsPage = () => {
                       <div className="mr-4">
                         <div className="relative h-10 w-10 overflow-hidden rounded-full">
                           <Image
-                            src="/images/blog/author-02.png"
+                            src="/images/IronGate/author-02.png"
                             alt="author"
                             fill
                           />
@@ -111,7 +111,7 @@ const BlogDetailsPage = () => {
                   <div className="mb-10 w-full overflow-hidden rounded-sm">
                     <div className="relative aspect-97/60 w-full sm:aspect-97/44">
                       <Image
-                        src="/images/blog/blog-details-02.jpg"
+                        src="/images/IronGate/IronGate-details-02.jpg"
                         alt="image"
                         fill
                         className="object-cover object-center"
@@ -344,4 +344,4 @@ const BlogDetailsPage = () => {
   );
 };
 
-export default BlogDetailsPage;
+export default IronGateDetailsPage;

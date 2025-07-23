@@ -12,14 +12,14 @@ const Footer = () => {
               <div className="mb-12 max-w-[360px] lg:mb-16">
                 <Link href="/" className="mb-8 inline-block">
                   <Image
-                    src="/images/logo/logo-2.svg"
+                    src="/images/logo/logo-dark.png"
                     alt="logo"
                     className="w-full dark:hidden"
                     width={140}
                     height={30}
                   />
                   <Image
-                    src="/images/logo/logo.svg"
+                    src="/images/logo/logo-light.png"
                     alt="logo"
                     className="hidden w-full dark:block"
                     width={140}
@@ -117,26 +117,26 @@ const Footer = () => {
                 <ul>
                   <li>
                     <Link
-                      href="/blog"
+                      href="/iron-gate"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
-                      Blog
+                      Iron Gate
                     </Link>
                   </li>
                   <li>
                     <Link
-                      href="/"
+                      href="/sensor-grid"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
-                      Pricing
+                      Sensor Grid
                     </Link>
                   </li>
                   <li>
                     <Link
-                      href="/about"
+                      href="/sentra-core"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
-                      About
+                      Sentra Core
                     </Link>
                   </li>
                 </ul>
@@ -185,7 +185,7 @@ const Footer = () => {
                 <ul>
                   <li>
                     <Link
-                      href="/contact"
+                      href="/sensor-grid"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
                       Open Support Ticket
@@ -201,10 +201,10 @@ const Footer = () => {
                   </li>
                   <li>
                     <Link
-                      href="/about"
+                      href="/sentra-core"
                       className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                     >
-                      About
+                      Sentra Core
                     </Link>
                   </li>
                 </ul>
