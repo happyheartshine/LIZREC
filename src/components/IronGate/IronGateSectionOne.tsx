@@ -433,9 +433,9 @@ const IronGateSectionOne = () => {
   };
 
   return (
-    <section id="IronGate" className="pt-16 md:pt-20 lg:pt-28">
+    <section id="IronGate" className="pt-16 md:pt-20 lg:pt-28 relative">
       {/* Toast Notifications Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
+      <div className="absolute top-4 right-4 z-[9999] space-y-2">
         {toasts.map((toast) => {
           const styles = getToastStyles(toast.type);
           return (
@@ -668,7 +668,7 @@ const IronGateSectionOne = () => {
                   <div className="space-y-3">
                     <div>
                       <h5 className="font-medium text-body-color dark:text-white mb-2">Labels ({loadedConfiguration.labels.length})</h5>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
+                      <div className="max-h-52 overflow-y-auto space-y-1">
                         {loadedConfiguration.labels.map((label) => (
                           <div key={label.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
                             <span className="text-body-color dark:text-white">{label.text}</span>
@@ -682,7 +682,7 @@ const IronGateSectionOne = () => {
                     
                     <div>
                       <h5 className="font-medium text-body-color dark:text-white mb-2">Connections ({loadedConfiguration.connections.length})</h5>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
+                      <div className="max-h-40 overflow-y-auto space-y-1">
                         {loadedConfiguration.connections.map((connection) => {
                           const fromLabel = loadedConfiguration.labels.find(l => l.id === connection.from);
                           const toLabel = loadedConfiguration.labels.find(l => l.id === connection.to);

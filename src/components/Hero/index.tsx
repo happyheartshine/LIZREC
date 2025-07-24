@@ -13,9 +13,7 @@ const Hero = () => {
               <div className="mx-auto max-w-[800px] text-center min-h-[500px]">
                 <h1 className="mb-5 text-3xl font-bold leading-tight text-black dark:text-white sm:text-4xl sm:leading-tight md:text-5xl md:leading-tight">
                   Visionary Robotics Evolution Core 
-                  email: happyheartshine727@gmail.com
-                  discord: yoroshi.kaneie,   
-                     Please contact me.
+                  Whatsapp: +1 (346)-612-0914
                 </h1>
               </div>
             </div>

@@ -697,9 +697,9 @@ ${connections.map(connection => `  - id: "${connection.id}"
 
 
   return (
-    <section id="SentraCore" className="pt-16 md:pt-20 lg:pt-28">
+    <section id="SentraCore" className="pt-16 md:pt-20 lg:pt-28 relative">
       {/* Toast Notifications Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
+      <div className="absolute top-4 right-4 z-[9999] space-y-2">
         {toasts.map((toast) => {
           const styles = getToastStyles(toast.type);
           return (
