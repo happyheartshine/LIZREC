@@ -6,11 +6,21 @@ A comprehensive sensor data analysis and labeling tool for LiDAR and IMU data.
 
 ### 🚀 Core Functionality
 
-- **Sensor Data Upload**: Support for CSV and JSON format sensor logs
+- **Sensor Data Upload**: Support for CSV, JSON, and YAML format sensor logs
+- **Interactive Graph Visualization**: Real-time charts with multiple chart types
 - **Timeline Visualization**: Interactive timeline with playhead control
 - **Manual Labeling**: Point and range labeling with categories
 - **Data Export**: Export labeled data in CSV or JSON format
 - **Configuration Management**: Load and manage analysis configurations
+
+### 📊 Graph Visualization
+
+- **Multiple Chart Types**: Line charts, bar charts, and scatter plots
+- **Dynamic Data Selection**: Choose which sensor fields to visualize
+- **Real-time Updates**: Charts update automatically when data is loaded
+- **Interactive Controls**: Zoom, pan, and hover tooltips
+- **Multi-field Support**: Display multiple sensor readings simultaneously
+- **Time-based X-axis**: Automatic timestamp formatting
 
 ### 📊 Timeline Controls
 
@@ -33,6 +43,7 @@ A comprehensive sensor data analysis and labeling tool for LiDAR and IMU data.
 
 - **CSV Format**: Standard comma-separated values
 - **JSON Format**: Structured JSON data
+- **YAML Format**: YAML configuration files
 - **Sensor Types**: LiDAR and IMU data detection
 - **Multiple Files**: Upload and manage multiple sensor files
 
@@ -50,9 +61,20 @@ A comprehensive sensor data analysis and labeling tool for LiDAR and IMU data.
 ### Uploading Sensor Data
 
 1. Click the file upload area
-2. Select CSV or JSON files containing sensor data
+2. Select CSV, JSON, or YAML files containing sensor data
 3. Files are automatically parsed and displayed
 4. Timeline range is updated based on data timestamps
+5. Graph visualization appears automatically
+
+### Graph Visualization
+
+1. **Chart Type Selection**: Choose between Line, Bar, or Scatter charts
+2. **Data Field Selection**: Select which sensor fields to display
+3. **Interactive Features**: 
+   - Hover over data points for detailed information
+   - Zoom and pan on charts
+   - Legend toggles for individual data series
+4. **Real-time Updates**: Charts update when new data is loaded
 
 ### Labeling Data
 
@@ -92,13 +114,34 @@ timestamp,x,y,z,intensity,range
 [
   {
     "timestamp": 0.0,
-    "x": 1.234,
-    "y": 2.345,
-    "z": 3.456,
-    "intensity": 128,
-    "range": 4.567
+    "accel_x": 0.123,
+    "accel_y": 0.234,
+    "accel_z": 9.81,
+    "gyro_x": 0.001,
+    "gyro_y": 0.002,
+    "gyro_z": 0.003
   }
 ]
+```
+
+### YAML Format Example
+
+```yaml
+- timestamp: 0.0
+  temperature: 25.5
+  humidity: 45.2
+  pressure: 1013.25
+  voltage: 12.1
+  current: 2.3
+  power: 27.83
+
+- timestamp: 0.1
+  temperature: 25.6
+  humidity: 45.3
+  pressure: 1013.26
+  voltage: 12.2
+  current: 2.4
+  power: 29.28
 ```
 
 ## Configuration
@@ -113,16 +156,25 @@ The right panel allows loading analysis configurations that can be used to:
 
 Sample files are provided in the `public` directory:
 - `sample_lidar_data.csv`: Example LiDAR point cloud data
-- `sample_imu_data.csv`: Example IMU sensor data
+- `sample_imu_data.json`: Example IMU sensor data
+- `sample_sensor_data.yaml`: Example YAML sensor data
 
 ## Technical Details
 
 - Built with React and TypeScript
+- Uses Recharts for graph visualization
+- Uses js-yaml for YAML parsing
 - Uses Tailwind CSS for styling
 - Responsive design with mobile support
-- File parsing handles various CSV and JSON formats
+- File parsing handles various CSV, JSON, and YAML formats
 - Timeline rendering with SVG for smooth interactions
 - Export functionality with proper file handling
+
+## Dependencies
+
+- `recharts`: Chart visualization library
+- `js-yaml`: YAML parsing library
+- `@types/js-yaml`: TypeScript definitions for js-yaml
 
 ## Future Enhancements
 
@@ -131,4 +183,7 @@ Sample files are provided in the `public` directory:
 - Machine learning integration for automated labeling
 - Cloud storage integration
 - Collaborative labeling features
-- Advanced filtering and search capabilities 
+- Advanced filtering and search capabilities
+- Custom chart configurations
+- Data preprocessing and filtering
+- Statistical analysis tools 

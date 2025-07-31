@@ -46,6 +46,9 @@ const IronGateSectionOne = () => {
     hasLoop: boolean;
     loopPath: string[];
     message: string;
+    hasDisconnectedComponents: boolean;
+    disconnectedComponents: string[][];
+    disconnectedMessage: string;
   } | null>(null);
 
   // State for configuration loading
@@ -147,36 +150,93 @@ const IronGateSectionOne = () => {
     }
   };
 
-  // Depth-First Search for loop detection
-  const detectInfiniteLoop = () => {
+  // Graph analysis for loop detection and disconnected components
+  const analyzeGraph = () => {
     if (labels.length === 0 || connections.length === 0) {
       setLoopDetectionResult({
         hasLoop: false,
         loopPath: [],
-        message: "No labels or connections to analyze"
+        message: "No labels or connections to analyze",
+        hasDisconnectedComponents: false,
+        disconnectedComponents: [],
+        disconnectedMessage: "No labels or connections to analyze"
       });
       return;
     }
 
+    // First, detect disconnected components
+    const disconnectedComponents = detectDisconnectedComponents();
+    const hasDisconnectedComponents = disconnectedComponents.length > 1;
+    
+    // Then, detect infinite loops
+    const loopResult = detectInfiniteLoopInternal();
+    
+    // Combine results
+    setLoopDetectionResult({
+      hasLoop: loopResult.hasLoop,
+      loopPath: loopResult.loopPath,
+      message: loopResult.message,
+      hasDisconnectedComponents,
+      disconnectedComponents,
+      disconnectedMessage: hasDisconnectedComponents 
+        ? `⚠️ Found ${disconnectedComponents.length} disconnected components!` 
+        : "✅ All components are connected."
+    });
+  };
+
+  // Detect disconnected components using DFS
+  const detectDisconnectedComponents = (): string[][] => {
+    const visited = new Set<string>();
+    const components: string[][] = [];
+
+    const dfs = (nodeId: string, component: string[]) => {
+      if (visited.has(nodeId)) return;
+      
+      visited.add(nodeId);
+      component.push(nodeId);
+      
+      // Find all connections (both incoming and outgoing)
+      const connectedNodes = connections
+        .filter(conn => conn.from === nodeId || conn.to === nodeId)
+        .map(conn => conn.from === nodeId ? conn.to : conn.from);
+      
+      for (const connectedNode of connectedNodes) {
+        dfs(connectedNode, component);
+      }
+    };
+
+    // Find all components
+    for (const label of labels) {
+      if (!visited.has(label.id)) {
+        const component: string[] = [];
+        dfs(label.id, component);
+        components.push(component);
+      }
+    }
+
+    return components;
+  };
+
+  // Internal loop detection function
+  const detectInfiniteLoopInternal = () => {
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
     const path: string[] = [];
 
-    const dfs = (nodeId: string): boolean => {
+    const dfs = (nodeId: string): { hasLoop: boolean; loopPath: string[]; message: string } => {
       if (recursionStack.has(nodeId)) {
         // Found a back edge - cycle detected
         const cycleStartIndex = path.indexOf(nodeId);
         const cyclePath = path.slice(cycleStartIndex);
-        setLoopDetectionResult({
+        return {
           hasLoop: true,
           loopPath: cyclePath,
           message: `Infinite loop detected! Cycle: ${cyclePath.join(' → ')} → ${nodeId}`
-        });
-        return true;
+        };
       }
 
       if (visited.has(nodeId)) {
-        return false;
+        return { hasLoop: false, loopPath: [], message: "" };
       }
 
       visited.add(nodeId);
@@ -187,31 +247,38 @@ const IronGateSectionOne = () => {
       const outgoingConnections = connections.filter(conn => conn.from === nodeId);
       
       for (const connection of outgoingConnections) {
-        if (dfs(connection.to)) {
-          return true;
+        const result = dfs(connection.to);
+        if (result.hasLoop) {
+          return result;
         }
       }
 
       recursionStack.delete(nodeId);
       path.pop();
-      return false;
+      return { hasLoop: false, loopPath: [], message: "" };
     };
 
     // Start DFS from each unvisited node
     for (const label of labels) {
       if (!visited.has(label.id)) {
-        if (dfs(label.id)) {
-          return; // Loop found, result already set
+        const result = dfs(label.id);
+        if (result.hasLoop) {
+          return result;
         }
       }
     }
 
     // No loop found
-    setLoopDetectionResult({
+    return {
       hasLoop: false,
       loopPath: [],
       message: "✅ No infinite loops detected. Logic is safe!"
-    });
+    };
+  };
+
+  // Legacy function for backward compatibility
+  const detectInfiniteLoop = () => {
+    analyzeGraph();
   };
 
   const loadSavedConfigurations = async () => {
@@ -480,31 +547,65 @@ const IronGateSectionOne = () => {
               {/* Loop Detection Controls */}
               <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-lg font-semibold text-body-color dark:text-white">Infinite Loop Detection</h4>
+                  <h4 className="text-lg font-semibold text-body-color dark:text-white">Graph Analysis</h4>
                   <button
-                    onClick={detectInfiniteLoop}
+                    onClick={analyzeGraph}
                     className="px-4 py-2 border hover cursor-pointer hover:bg-green-600 text-gray-600 dark:text-gray-400 font-semibold rounded-lg transition-colors"
                   >
-                    🔍 Detect Loops
+                    🔍 Analyze Graph
                   </button>
                 </div>
                 
                 {loopDetectionResult && (
-                  <div className={`p-3 rounded-lg ${
-                    loopDetectionResult.hasLoop 
-                      ? 'bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700' 
-                      : 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
-                  }`}>
-                    <p className={`font-medium ${
-                      loopDetectionResult.hasLoop ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
+                  <div className="space-y-3">
+                    {/* Loop Detection Result */}
+                    <div className={`p-3 rounded-lg ${
+                      loopDetectionResult.hasLoop 
+                        ? 'bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700' 
+                        : 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
                     }`}>
-                      {loopDetectionResult.message}
-                    </p>
-                    {loopDetectionResult.loopPath.length > 0 && (
-                      <p className="text-sm text-red-600 dark:text-red-300 mt-2">
-                        Loop path: {loopDetectionResult.loopPath.join(' → ')}
+                      <p className={`font-medium ${
+                        loopDetectionResult.hasLoop ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
+                      }`}>
+                        {loopDetectionResult.message}
                       </p>
-                    )}
+                      {loopDetectionResult.loopPath.length > 0 && (
+                        <p className="text-sm text-red-600 dark:text-red-300 mt-2">
+                          Loop path: {loopDetectionResult.loopPath.join(' → ')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Disconnected Components Result */}
+                    <div className={`p-3 rounded-lg ${
+                      loopDetectionResult.hasDisconnectedComponents 
+                        ? 'bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700' 
+                        : 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
+                    }`}>
+                      <p className={`font-medium ${
+                        loopDetectionResult.hasDisconnectedComponents ? 'text-yellow-800 dark:text-yellow-200' : 'text-green-800 dark:text-green-200'
+                      }`}>
+                        {loopDetectionResult.disconnectedMessage}
+                      </p>
+                      {loopDetectionResult.hasDisconnectedComponents && loopDetectionResult.disconnectedComponents.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm text-yellow-600 dark:text-yellow-300 mb-1">
+                            Disconnected components:
+                          </p>
+                          {loopDetectionResult.disconnectedComponents.map((component, index) => {
+                            const componentLabels = component.map(id => {
+                              const label = labels.find(l => l.id === id);
+                              return label ? label.text : id;
+                            });
+                            return (
+                              <div key={index} className="text-sm text-yellow-600 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/10 p-2 rounded mb-1">
+                                Component {index + 1}: {componentLabels.join(', ')}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

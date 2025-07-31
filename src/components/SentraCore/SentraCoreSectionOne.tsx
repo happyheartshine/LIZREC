@@ -91,6 +91,7 @@ const SentraCoreSectionOne = () => {
   const [selectedConfigurationId, setSelectedConfigurationId] = useState<string>("");
   const [isLoadingConfigurations, setIsLoadingConfigurations] = useState(false);
   const [isLoadingConfiguration, setIsLoadingConfiguration] = useState(false);
+  const [currentLoadedConfigurationId, setCurrentLoadedConfigurationId] = useState<string | null>(null);
 
   // New state for tab system
   const [activeTab, setActiveTab] = useState<"logic-blocks" | "others">("logic-blocks");
@@ -261,8 +262,8 @@ const SentraCoreSectionOne = () => {
 
       const frontendConnections = configuration.connections.map((connection: any) => ({
         id: connection.id,
-        from: connection.from_id, // Backend uses from_id, frontend expects from
-        to: connection.to_id      // Backend uses to_id, frontend expects to
+        from: connection.from_id || connection.from, // Handle both field names
+        to: connection.to_id || connection.to        // Handle both field names
       }));
 
       // Update the state with loaded configuration
@@ -278,6 +279,7 @@ const SentraCoreSectionOne = () => {
       setIsDragging(false);
       setDragOffset({ x: 0, y: 0 });
       setEditValue("");
+      setCurrentLoadedConfigurationId(selectedConfigurationId); // Set the current loaded ID
 
       showToast('success', 'Success', 'Configuration loaded successfully!');
     } catch (error) {
@@ -427,28 +429,52 @@ const SentraCoreSectionOne = () => {
     setIsDragging(false);
     setDragOffset({ x: 0, y: 0 });
     setEditValue("");
+    setCurrentLoadedConfigurationId(null);
   };
 
   const handleSave = async () => {
     // Save the current state to backend
     try {
+      // Convert connections to backend format (use from_id/to_id instead of from/to)
+      const backendConnections = connections.map(connection => ({
+        id: connection.id,
+        from_id: connection.from,
+        to_id: connection.to
+      }));
+
       const currentState = {
         name: `SentraCore Configuration ${new Date().toLocaleString()}`,
         description: "Robot movement and action sequence",
         labels: labels,
-        connections: connections,
+        connections: backendConnections,
         selected_option: selectedOption
       };
       
       console.log('Saving current state:', currentState);
       
-      const response = await fetch('http://localhost:8000/api/sentra-core/save-state/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(currentState)
-      });
+      let response;
+      let isUpdate = false;
+      
+      if (currentLoadedConfigurationId) {
+        // Update existing configuration
+        isUpdate = true;
+        response = await fetch(`http://localhost:8000/api/sentra-core/${currentLoadedConfigurationId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(currentState)
+        });
+      } else {
+        // Create new configuration
+        response = await fetch('http://localhost:8000/api/sentra-core/save-state/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(currentState)
+        });
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -457,14 +483,22 @@ const SentraCoreSectionOne = () => {
 
       const result = await response.json();
       console.log('Saved successfully:', result);
-      showToast('success', 'Success', 'Configuration saved successfully!');
+      
+      const message = isUpdate ? 'Configuration updated successfully!' : 'Configuration saved successfully!';
+      showToast('success', 'Success', message);
+      
+      // If this was a new save, update the current loaded configuration ID
+      if (!isUpdate && result.id) {
+        setCurrentLoadedConfigurationId(result.id);
+      }
       
       // Refresh the saved configurations list
       await loadSavedConfigurations();
       
     } catch (error) {
       console.error('Error saving configuration:', error);
-      showToast('error', 'Error', 'Error saving configuration. Please try again.');
+      const message = currentLoadedConfigurationId ? 'Error updating configuration.' : 'Error saving configuration.';
+      showToast('error', 'Error', `${message} Please try again.`);
     }
   };
 
@@ -543,7 +577,12 @@ ${connections.map(connection => `  - id: "${connection.id}"
 
   const handleDeleteLabel = (labelId: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    // Delete the label
     setLabels(prev => prev.filter(label => label.id !== labelId));
+    // Delete all connections to/from this label
+    setConnections(prev => prev.filter(connection => 
+      connection.from !== labelId && connection.to !== labelId
+    ));
     setSelectedLabelId(null);
   };
 
@@ -802,6 +841,22 @@ ${connections.map(connection => `  - id: "${connection.id}"
 
                   {/* Action Buttons */}
                   <div className="space-y-2">
+                    {/* Status Indicator */}
+                    {currentLoadedConfigurationId && (
+                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 dark:text-blue-400">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7,10 12,15 17,10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                            Editing loaded configuration
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     <button
                       onClick={handleInit}
                       className="w-full px-4 py-2 border cursor-pointer from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-gray-600 dark:text-gray-400 font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 text-sm"
@@ -816,7 +871,11 @@ ${connections.map(connection => `  - id: "${connection.id}"
                     </button>
                     <button
                       onClick={handleSave}
-                      className="w-full px-4 py-2 cursor-pointer border from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-gray-600 dark:text-gray-400 font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 text-sm"
+                      className={`w-full px-4 py-2 cursor-pointer border font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 text-sm ${
+                        currentLoadedConfigurationId 
+                          ? 'from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white' 
+                          : 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-gray-600 dark:text-gray-400'
+                      }`}
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -824,7 +883,7 @@ ${connections.map(connection => `  - id: "${connection.id}"
                           <polyline points="17,21 17,13 7,13 7,21" />
                           <polyline points="7,3 7,8 15,8" />
                         </svg>
-                        <span>Save</span>
+                        <span>{currentLoadedConfigurationId ? 'Update' : 'Save'}</span>
                       </div>
                     </button>
                   </div>

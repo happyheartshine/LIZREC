@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter } from 'recharts';
+import * as yaml from 'js-yaml';
 
 interface SensorData {
   timestamp: number;
@@ -14,13 +16,30 @@ interface Label {
   text: string;
   category: string;
   color: string;
+  value?: number;
+  x?: number;
+  y?: number;
+}
+
+interface Connection {
+  id: string;
+  from: string;
+  to: string;
+}
+
+interface ConfigurationData {
+  name?: string;
+  description?: string;
+  labels: Label[];
+  connections: Connection[];
+  created_at?: string;
 }
 
 interface SensorFile {
   id: string;
   name: string;
-  type: 'lidar' | 'imu';
-  data: SensorData[];
+  type: 'lidar' | 'imu' | 'configuration';
+  data: SensorData[] | ConfigurationData;
   loaded: boolean;
 }
 
@@ -56,6 +75,8 @@ const SensorGridSectionOne = () => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [timeRange, setTimeRange] = useState({ start: 0, end: 100 });
+  const [selectedGraphType, setSelectedGraphType] = useState<'line' | 'bar' | 'scatter'>('line');
+  const [selectedDataFields, setSelectedDataFields] = useState<string[]>([]);
 
   // State for labeling
   const [labels, setLabels] = useState<Label[]>([]);
@@ -171,6 +192,25 @@ const SensorGridSectionOne = () => {
     }
   };
 
+  // Helper function to safely get time range values
+  const getSafeTimeRange = () => {
+    return {
+      start: isNaN(timeRange.start) ? 0 : timeRange.start,
+      end: isNaN(timeRange.end) ? 100 : timeRange.end
+    };
+  };
+
+  const getSafeTimelineRange = () => {
+    return {
+      start: isNaN(timelineStart) ? 0 : timelineStart,
+      end: isNaN(timelineEnd) ? 100 : timelineEnd
+    };
+  };
+
+  const getSafeCurrentTime = () => {
+    return isNaN(currentTime) ? 0 : currentTime;
+  };
+
   // File upload handling
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -181,39 +221,107 @@ const SensorGridSectionOne = () => {
       reader.onload = (e) => {
         try {
           const content = e.target?.result as string;
-          let data: SensorData[] = [];
+          let data: SensorData[] | ConfigurationData = [];
           
           if (file.name.endsWith('.csv')) {
             data = parseCSV(content);
           } else if (file.name.endsWith('.json')) {
-            data = JSON.parse(content);
+            data = parseJSON(content);
+          } else if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+            data = parseYAML(content);
           } else {
-            showToast('error', 'Invalid File', 'Please upload CSV or JSON files only');
+            showToast('error', 'Invalid File', 'Please upload CSV, JSON, or YAML files only');
             return;
           }
 
-          const sensorFile: SensorFile = {
-            id: Date.now().toString(),
-            name: file.name,
-            type: file.name.toLowerCase().includes('lidar') ? 'lidar' : 'imu',
-            data: data,
-            loaded: true
-          };
-
-          setSensorFiles(prev => [...prev, sensorFile]);
-          showToast('success', 'File Uploaded', `${file.name} loaded successfully`);
+          // Check if it's configuration data
+          const isConfiguration = !Array.isArray(data) && 'labels' in data;
           
-          // Update time range if this is the first file
-          if (sensorFiles.length === 0) {
-            const timestamps = data.map(d => d.timestamp);
-            const minTime = Math.min(...timestamps);
-            const maxTime = Math.max(...timestamps);
-            setTimeRange({ start: minTime, end: maxTime });
-            setTimelineStart(minTime);
-            setTimelineEnd(maxTime);
+          if (isConfiguration) {
+            const configData = data as ConfigurationData;
+            if (!configData.labels || configData.labels.length === 0) {
+              showToast('error', 'Invalid Configuration', `${file.name} does not contain valid configuration data`);
+              return;
+            }
+
+            const sensorFile: SensorFile = {
+              id: Date.now().toString(),
+              name: file.name,
+              type: 'configuration',
+              data: configData,
+              loaded: true
+            };
+
+            setSensorFiles(prev => [...prev, sensorFile]);
+            showToast('success', 'Configuration Loaded', `${file.name} loaded successfully with ${configData.labels.length} labels`);
+            
+            // Update time range if this is the first file
+            if (sensorFiles.length === 0) {
+              const timestamps = configData.labels.map(l => l.startTime).filter(t => !isNaN(t));
+              if (timestamps.length > 0) {
+                const minTime = Math.min(...timestamps);
+                const maxTime = Math.max(...timestamps);
+                setTimeRange({ start: minTime, end: maxTime });
+                setTimelineStart(minTime);
+                setTimelineEnd(maxTime);
+              } else {
+                // Fallback values if no valid timestamps
+                setTimeRange({ start: 0, end: 100 });
+                setTimelineStart(0);
+                setTimelineEnd(100);
+              }
+            }
+          } else {
+            // Handle sensor data
+            const sensorData = data as SensorData[];
+            if (!Array.isArray(sensorData) || sensorData.length === 0) {
+              showToast('error', 'Invalid Data', `${file.name} does not contain valid sensor data`);
+              return;
+            }
+
+            // Validate that each data point has a timestamp
+            const validData = sensorData.filter(item => 
+              item && typeof item === 'object' && 
+              typeof item.timestamp === 'number' && 
+              !isNaN(item.timestamp)
+            );
+
+            if (validData.length === 0) {
+              showToast('error', 'Invalid Data', `${file.name} does not contain valid timestamp data`);
+              return;
+            }
+
+            const sensorFile: SensorFile = {
+              id: Date.now().toString(),
+              name: file.name,
+              type: file.name.toLowerCase().includes('lidar') ? 'lidar' : 'imu',
+              data: validData,
+              loaded: true
+            };
+
+            setSensorFiles(prev => [...prev, sensorFile]);
+            showToast('success', 'File Uploaded', `${file.name} loaded successfully with ${validData.length} data points`);
+            
+            // Update time range if this is the first file
+            if (sensorFiles.length === 0) {
+              const timestamps = validData.map(d => d.timestamp).filter(t => !isNaN(t));
+              if (timestamps.length > 0) {
+                const minTime = Math.min(...timestamps);
+                const maxTime = Math.max(...timestamps);
+                setTimeRange({ start: minTime, end: maxTime });
+                setTimelineStart(minTime);
+                setTimelineEnd(maxTime);
+              } else {
+                // Fallback values if no valid timestamps
+                setTimeRange({ start: 0, end: 100 });
+                setTimelineStart(0);
+                setTimelineEnd(100);
+              }
+            }
           }
         } catch (error) {
-          showToast('error', 'Parse Error', `Failed to parse ${file.name}`);
+          console.error('Error processing file:', error);
+          showToast('error', 'Parse Error', `Failed to parse ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       };
       reader.readAsText(file);
@@ -246,6 +354,81 @@ const SensorGridSectionOne = () => {
     return data;
   };
 
+  const parseYAML = (content: string): SensorData[] | ConfigurationData => {
+    try {
+      const data = yaml.load(content);
+      
+      // Check if it's configuration data (has labels and connections)
+      if (data && typeof data === 'object' && 'labels' in data) {
+        const configData = data as any;
+        return {
+          name: configData.name || 'Imported Configuration',
+          description: configData.description || '',
+          labels: configData.labels || [],
+          connections: configData.connections || [],
+          created_at: configData.created_at || new Date().toISOString()
+        };
+      }
+      
+      // Check if it's sensor data array
+      if (Array.isArray(data)) {
+        return data.map((item: any) => ({
+          timestamp: item.timestamp || 0,
+          ...item
+        }));
+      } else if (data && typeof data === 'object') {
+        // Handle case where YAML might be an object with data property
+        const dataArray = (data as any).data || (data as any).sensors || [];
+        if (Array.isArray(dataArray)) {
+          return dataArray.map((item: any) => ({
+            timestamp: item.timestamp || 0,
+            ...item
+          }));
+        }
+      }
+      
+      console.warn('YAML data is not in expected format:', data);
+      return [];
+    } catch (e) {
+      console.error('Error parsing YAML:', e);
+      showToast('error', 'Parse Error', 'Failed to parse YAML file.');
+      return [];
+    }
+  };
+
+  const parseJSON = (content: string): SensorData[] | ConfigurationData => {
+    try {
+      const data = JSON.parse(content);
+      
+      // Check if it's configuration data (has labels and connections)
+      if (data && typeof data === 'object' && 'labels' in data) {
+        const configData = data as any;
+        return {
+          name: configData.name || 'Imported Configuration',
+          description: configData.description || '',
+          labels: configData.labels || [],
+          connections: configData.connections || [],
+          created_at: configData.created_at || new Date().toISOString()
+        };
+      }
+      
+      // Check if it's sensor data array
+      if (Array.isArray(data)) {
+        return data.map((item: any) => ({
+          timestamp: item.timestamp || 0,
+          ...item
+        }));
+      }
+      
+      console.warn('JSON data is not in expected format:', data);
+      return [];
+    } catch (e) {
+      console.error('Error parsing JSON:', e);
+      showToast('error', 'Parse Error', 'Failed to parse JSON file.');
+      return [];
+    }
+  };
+
   // Playback controls
   const togglePlayback = () => {
     if (isPlaying) {
@@ -274,7 +457,8 @@ const SensorGridSectionOne = () => {
   };
 
   const seekTo = (time: number) => {
-    setCurrentTime(Math.max(timeRange.start, Math.min(timeRange.end, time)));
+    const safeRange = getSafeTimeRange();
+    setCurrentTime(Math.max(safeRange.start, Math.min(safeRange.end, time)));
   };
 
   // Labeling functions
@@ -322,7 +506,8 @@ const SensorGridSectionOne = () => {
     const rect = timelineRef.current.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const timelineWidth = rect.width;
-    const timeAtClick = timelineStart + (clickX / timelineWidth) * (timelineEnd - timelineStart);
+    const safeTimeline = getSafeTimelineRange();
+    const timeAtClick = safeTimeline.start + (clickX / timelineWidth) * (safeTimeline.end - safeTimeline.start);
     
     if (labelingMode === 'point') {
       addLabel(timeAtClick);
@@ -410,7 +595,22 @@ const SensorGridSectionOne = () => {
     }
   };
 
-  const generateRobotMovements = (labels: any[], connections: any[]): RobotMovement[] => {
+  const getMovementDescription = (type: string, value: number): string => {
+    switch (type) {
+      case 'move':
+        return value > 0 ? `Forward ${Math.abs(value)}` : `Backward ${Math.abs(value)}`;
+      case 'turn':
+        return value > 0 ? `Turn Right ${Math.abs(value)}°` : `Turn Left ${Math.abs(value)}°`;
+      case 'wait':
+        return `Wait ${value}s`;
+      case 'grip':
+        return `Grip Action`;
+      default:
+        return `${type} ${value}`;
+    }
+  };
+
+  const generateRobotMovements = (labels: any[]): RobotMovement[] => {
     const movements: RobotMovement[] = [];
     let currentTime = 0;
     let currentPosition: RobotPosition = { x: 100, y: 100, angle: 0 };
@@ -431,60 +631,39 @@ const SensorGridSectionOne = () => {
       }
     };
     
-    // Create a map of labels by ID for easy lookup
-    const labelMap = new Map(labels.map(label => [label.id, label]));
-    
-    // Find starting label (label with no incoming connections)
-    const incomingConnections = new Set(connections.map(conn => conn.to));
-    const startingLabels = labels.filter(label => !incomingConnections.has(label.id));
-    
-    if (startingLabels.length === 0 && labels.length > 0) {
-      // If no clear starting point, use the first label
-      startingLabels.push(labels[0]);
-    }
-    
-    const processedLabels = new Set<string>();
-    const queue = [...startingLabels];
-    
-    while (queue.length > 0) {
-      const currentLabel = queue.shift()!;
-      
-      if (processedLabels.has(currentLabel.id)) continue;
-      processedLabels.add(currentLabel.id);
-      
+    // Process labels in order (assuming they come in the correct sequence)
+    for (const label of labels) {
       // Extract value from the label (handle different field names)
-      const value = currentLabel.value !== undefined ? Number(currentLabel.value) : 
-                   currentLabel.val !== undefined ? Number(currentLabel.val) : 0;
+      const value = label.value !== undefined ? Number(label.value) : 
+                   label.val !== undefined ? Number(label.val) : 0;
+      console.log('Processing label:', label);
       
-      // Calculate movement for current label using the same logic as loadConfiguration
-      const duration = calculateDuration(currentLabel.category, value);
-      const newPosition = calculateNewPosition(currentPosition, currentLabel.category, value);
-      
-      const movement: RobotMovement = {
-        id: currentLabel.id,
-        type: currentLabel.category as 'move' | 'turn' | 'wait' | 'grip',
-        value: value,
-        duration,
-        startTime: currentTime,
-        endTime: currentTime + duration,
-        fromPosition: { ...currentPosition },
-        toPosition: newPosition
-      };
-      
-      movements.push(movement);
-      currentTime += duration;
-      currentPosition = newPosition;
-      
-      // Find next labels through connections
-      const nextConnections = connections.filter(conn => conn.from === currentLabel.id);
-      for (const connection of nextConnections) {
-        const nextLabel = labelMap.get(connection.to);
-        if (nextLabel && !processedLabels.has(nextLabel.id)) {
-          queue.push(nextLabel);
-        }
+      // Only create movements for robot action categories
+      if (['move', 'turn', 'wait', 'grip'].includes(label.category)) {
+        const duration = calculateDuration(label.category, value);
+        const newPosition = calculateNewPosition(currentPosition, label.category, value);
+        const description = getMovementDescription(label.category, value);
+        
+        const movement: RobotMovement = {
+          id: label.id,
+          type: label.category as 'move' | 'turn' | 'wait' | 'grip',
+          value: value,
+          duration,
+          startTime: currentTime,
+          endTime: currentTime + duration,
+          fromPosition: { ...currentPosition },
+          toPosition: newPosition
+        };
+        
+        movements.push(movement);
+        currentTime += duration;
+        currentPosition = newPosition;
+        
+        console.log(`Generated movement: ${description} (${duration}s) from (${movement.fromPosition.x}, ${movement.fromPosition.y}) to (${movement.toPosition.x}, ${movement.toPosition.y})`);
       }
     }
     
+    console.log('Generated robot movements:', movements);
     return movements;
   };
 
@@ -500,13 +679,21 @@ const SensorGridSectionOne = () => {
     
     const totalDuration = Math.max(...robotMovements.map(m => m.endTime));
     
-    const interval = setInterval(() => {
+    // Clear any existing interval
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+    }
+    
+    playbackIntervalRef.current = setInterval(() => {
       setRobotSimulationTime(prev => {
         const newTime = prev + (0.1 * robotSimulationSpeed);
         
         if (newTime >= totalDuration) {
           setIsRobotSimulationPlaying(false);
-          clearInterval(interval);
+          if (playbackIntervalRef.current) {
+            clearInterval(playbackIntervalRef.current);
+            playbackIntervalRef.current = null;
+          }
           return totalDuration;
         }
         
@@ -538,6 +725,12 @@ const SensorGridSectionOne = () => {
     setIsRobotSimulationPlaying(false);
     setRobotSimulationTime(0);
     setRobotPosition({ x: 100, y: 100, angle: 0 });
+    
+    // Clear the interval
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+    }
   };
 
   // Configuration loading
@@ -633,6 +826,7 @@ const SensorGridSectionOne = () => {
           id: label.id,
           startTime: startTime,
           endTime: endTime,
+          value: value,
           text: label.text || label.name || 'Unnamed Label',
           category: label.category || label.type || 'event',
           color: getCategoryColor(label.category || label.type || 'event')
@@ -652,9 +846,9 @@ const SensorGridSectionOne = () => {
       setSelectedConfigurationName(configuration.name || 'Unknown Configuration');
       
       // Generate robot movements from the loaded configuration
-      const movements = generateRobotMovements(frontendLabels, frontendConnections);
+      const movements = generateRobotMovements(frontendLabels);
       setRobotMovements(movements);
-      
+      console.log('aaaaaaaaaaa', frontendLabels);
       showToast('success', 'Success', 'Configuration loaded successfully!');
     } catch (error) {
       console.error('Error loading configuration:', error);
@@ -671,8 +865,343 @@ const SensorGridSectionOne = () => {
     setSelectedLabel(null);
   };
 
+  // Graph visualization functions
+  const getAvailableDataFields = (): string[] => {
+    if (sensorFiles.length === 0) return [];
+    
+    const allFields = new Set<string>();
+    sensorFiles.forEach(file => {
+      if (file.type === 'configuration') {
+        // For configuration files, show label categories and values
+        const configData = file.data as ConfigurationData;
+        configData.labels.forEach(label => {
+          if (label.category) allFields.add(`category_${label.category}`);
+          if (label.value !== undefined) allFields.add('value');
+          if (label.startTime !== undefined) allFields.add('startTime');
+          if (label.endTime !== undefined) allFields.add('endTime');
+        });
+      } else if (file.data && Array.isArray(file.data)) {
+        // For sensor data files
+        file.data.forEach(row => {
+          if (row && typeof row === 'object') {
+            Object.keys(row).forEach(key => {
+              if (key !== 'timestamp' && typeof row[key] === 'number') {
+                allFields.add(key);
+              }
+            });
+          }
+        });
+      }
+    });
+    
+    return Array.from(allFields);
+  };
+
+  const getChartData = () => {
+    if (sensorFiles.length === 0 || selectedDataFields.length === 0) return [];
+    
+    const allData: any[] = [];
+    
+    sensorFiles.forEach(file => {
+      if (file.type === 'configuration') {
+        // Handle configuration data
+        const configData = file.data as ConfigurationData;
+        configData.labels.forEach((label, index) => {
+          const dataPoint: any = { 
+            timestamp: label.startTime,
+            index: index,
+            labelId: label.id,
+            text: label.text
+          };
+          
+          selectedDataFields.forEach(field => {
+            if (field === 'value' && label.value !== undefined) {
+              dataPoint[field] = label.value;
+            } else if (field === 'startTime') {
+              dataPoint[field] = label.startTime;
+            } else if (field === 'endTime') {
+              dataPoint[field] = label.endTime;
+            } else if (field.startsWith('category_')) {
+              const category = field.replace('category_', '');
+              dataPoint[field] = label.category === category ? 1 : 0;
+            }
+          });
+          
+          allData.push(dataPoint);
+        });
+      } else if (file.data && Array.isArray(file.data)) {
+        // Handle sensor data
+        file.data.forEach(row => {
+          if (row && typeof row === 'object') {
+            const dataPoint: any = { timestamp: row.timestamp };
+            selectedDataFields.forEach(field => {
+              if (row[field] !== undefined) {
+                dataPoint[field] = row[field];
+              }
+            });
+            allData.push(dataPoint);
+          }
+        });
+      }
+    });
+    
+    return allData.sort((a, b) => a.timestamp - b.timestamp);
+  };
+
+  const renderConfigurationGraph = () => {
+    const configFiles = sensorFiles.filter(file => file.type === 'configuration');
+    if (configFiles.length === 0) return null;
+
+    return (
+      <div className="space-y-4">
+        {configFiles.map((file, fileIndex) => {
+          const configData = file.data as ConfigurationData;
+          
+          // Calculate bounds for auto-scaling
+          const labels = configData.labels.filter(l => l.x !== undefined && l.y !== undefined);
+          if (labels.length === 0) return null;
+          
+          const xValues = labels.map(l => l.x!);
+          const yValues = labels.map(l => l.y!);
+          const minX = Math.min(...xValues);
+          const maxX = Math.max(...xValues);
+          const minY = Math.min(...yValues);
+          const maxY = Math.max(...yValues);
+          
+          // Add padding and ensure minimum bounds
+          const padding = 50;
+          const graphWidth = Math.max(maxX - minX + 2 * padding, 400);
+          const graphHeight = Math.max(maxY - minY + 2 * padding, 200);
+          
+          // Calculate scale factors to fit in container
+          const containerWidth = 600; // Approximate container width
+          const containerHeight = 300; // Approximate container height
+          const scaleX = containerWidth / graphWidth;
+          const scaleY = containerHeight / graphHeight;
+          const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+          
+          // Calculate offset to center the graph
+          const offsetX = (containerWidth - graphWidth * scale) / 2;
+          const offsetY = (containerHeight - graphHeight * scale) / 2;
+          
+          return (
+            <div key={file.id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+              <h5 className="text-lg font-semibold text-body-color dark:text-white mb-3">
+                {configData.name || file.name}
+              </h5>
+              
+              {/* Configuration Graph */}
+              <div className="relative w-full h-80 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 overflow-hidden">
+                {/* Grid lines */}
+                <div className="absolute inset-0 opacity-20">
+                  {Array.from({ length: 20 }, (_, i) => (
+                    <div key={`v-${i}`} className="absolute top-0 bottom-0 border-l border-gray-400" style={{ left: `${i * 5}%` }} />
+                  ))}
+                  {Array.from({ length: 20 }, (_, i) => (
+                    <div key={`h-${i}`} className="absolute left-0 right-0 border-t border-gray-400" style={{ top: `${i * 5}%` }} />
+                  ))}
+                </div>
+                
+                {/* Connection lines */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                  {configData.connections.map(connection => {
+                    const fromLabel = configData.labels.find(l => l.id === connection.from);
+                    const toLabel = configData.labels.find(l => l.id === connection.to);
+                    
+                    if (fromLabel && toLabel && fromLabel.x !== undefined && fromLabel.y !== undefined && 
+                        toLabel.x !== undefined && toLabel.y !== undefined) {
+                      
+                      // Transform coordinates to fit in container
+                      const x1 = offsetX + (fromLabel.x - minX + padding) * scale;
+                      const y1 = offsetY + (fromLabel.y - minY + padding) * scale;
+                      const x2 = offsetX + (toLabel.x - minX + padding) * scale;
+                      const y2 = offsetY + (toLabel.y - minY + padding) * scale;
+                      
+                      return (
+                        <line
+                          key={connection.id}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="#10B981"
+                          strokeWidth="2"
+                          opacity="0.6"
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </svg>
+                
+                {/* Labels */}
+                {configData.labels.map(label => {
+                  if (label.x === undefined || label.y === undefined) return null;
+                  
+                  // Transform coordinates to fit in container
+                  const x = offsetX + (label.x - minX + padding) * scale;
+                  const y = offsetY + (label.y - minY + padding) * scale;
+                  
+                  return (
+                    <div
+                      key={label.id}
+                      className="absolute w-12 h-12 rounded-lg border-2 border-white shadow-lg cursor-pointer transform transition-all duration-200 hover:scale-110"
+                      style={{
+                        left: `${x}px`,
+                        top: `${y}px`,
+                        backgroundColor: label.color || getCategoryColor(label.category),
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                      title={`${label.text} (${label.category})`}
+                    >
+                      <div className="flex items-center justify-center h-full text-white text-xs font-medium text-center p-1">
+                        {label.text}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Scale indicator */}
+                <div className="absolute bottom-2 right-2 text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-1 rounded">
+                  Scale: {(scale * 100).toFixed(0)}%
+                </div>
+              </div>
+              
+              {/* Configuration Summary */}
+              <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                <div>Labels: {configData.labels.length}</div>
+                <div>Connections: {configData.connections.length}</div>
+                <div>Categories: {[...new Set(configData.labels.map(l => l.category))].join(', ')}</div>
+                <div>Bounds: ({minX.toFixed(0)}, {minY.toFixed(0)}) to ({maxX.toFixed(0)}, {maxY.toFixed(0)})</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderChart = () => {
+    const chartData = getChartData();
+    if (chartData.length === 0) return null;
+
+    const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+
+    switch (selectedGraphType) {
+      case 'line':
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="timestamp" 
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(value) => `${value.toFixed(1)}s`}
+              />
+              <YAxis />
+              <Tooltip 
+                labelFormatter={(value) => `Time: ${value.toFixed(1)}s`}
+                formatter={(value, name) => [value, name]}
+              />
+              <Legend />
+              {selectedDataFields.map((field, index) => (
+                <Line
+                  key={field}
+                  type="monotone"
+                  dataKey={field}
+                  stroke={colors[index % colors.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      
+      case 'bar':
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData.slice(0, 50)}> {/* Limit to first 50 points for bar chart */}
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="timestamp" 
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(value) => `${value.toFixed(1)}s`}
+              />
+              <YAxis />
+              <Tooltip 
+                labelFormatter={(value) => `Time: ${value.toFixed(1)}s`}
+                formatter={(value, name) => [value, name]}
+              />
+              <Legend />
+              {selectedDataFields.map((field, index) => (
+                <Bar
+                  key={field}
+                  dataKey={field}
+                  fill={colors[index % colors.length]}
+                  opacity={0.8}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      
+      case 'scatter':
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <ScatterChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="timestamp" 
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(value) => `${value.toFixed(1)}s`}
+              />
+              <YAxis />
+              <Tooltip 
+                labelFormatter={(value) => `Time: ${value.toFixed(1)}s`}
+                formatter={(value, name) => [value, name]}
+              />
+              <Legend />
+              {selectedDataFields.map((field, index) => (
+                <Scatter
+                  key={field}
+                  dataKey={field}
+                  fill={colors[index % colors.length]}
+                  opacity={0.6}
+                />
+              ))}
+            </ScatterChart>
+          </ResponsiveContainer>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // Auto-select data fields when files are loaded
+  useEffect(() => {
+    if (sensorFiles.length > 0 && selectedDataFields.length === 0) {
+      const availableFields = getAvailableDataFields();
+      setSelectedDataFields(availableFields.slice(0, 3)); // Select first 3 fields by default
+    }
+  }, [sensorFiles]);
+
   useEffect(() => {
     loadSavedConfigurations();
+  }, []);
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
   }, []);
 
   return (
@@ -713,8 +1242,8 @@ const SensorGridSectionOne = () => {
       </div>
 
       <div className="container">
-        <div className="border-b border-body-color/[.15] pb-16 dark:border-white/[.15] md:pb-20 lg:pb-28  min-h-[1200px]">
-          <div className="-mx-4 flex flex-wrap items-top justify-between min-h-[1200px]">
+        <div className="border-b border-body-color/[.15] pb-16 dark:border-white/[.15] md:pb-20 lg:pb-28">
+          <div className="-mx-4 flex flex-wrap items-start justify-between">
             
             {/* Left Side - Sensor Data Upload, Timeline, and Labeling */}
             <div className="w-full px-4 py-4 lg:w-2/3 border border-body-color/[.15] dark:border-white/[.15] rounded-lg bg-gray-50 dark:bg-gray-900">
@@ -732,7 +1261,7 @@ const SensorGridSectionOne = () => {
                   </div>
                   <div className="flex-1">
                     <span className="text-body-color dark:text-white font-semibold text-base block">Upload Sensor Data</span>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm">Upload LiDAR or IMU data (CSV/JSON)</span>
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">Upload LiDAR or IMU data (CSV/JSON/YAML)</span>
                   </div>
                 </div>
                 
@@ -740,7 +1269,7 @@ const SensorGridSectionOne = () => {
                   <input
                     type="file"
                     multiple
-                    accept=".csv,.json"
+                    accept=".csv,.json,.yaml,.yml"
                     onChange={handleFileUpload}
                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-body-color dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
@@ -748,16 +1277,18 @@ const SensorGridSectionOne = () => {
                   {sensorFiles.length > 0 && (
                     <div className="space-y-2">
                       <h5 className="font-medium text-body-color dark:text-white">Loaded Files:</h5>
-                      {sensorFiles.map(file => (
-                        <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
-                          <span className="text-body-color dark:text-white">{file.name}</span>
-                          <span className={`px-2 py-1 rounded text-xs text-white ${
-                            file.type === 'lidar' ? 'bg-blue-500' : 'bg-green-500'
-                          }`}>
-                            {file.type.toUpperCase()}
-                          </span>
-                        </div>
-                      ))}
+                      <div className="max-h-32 overflow-y-auto space-y-2">
+                        {sensorFiles.map(file => (
+                          <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
+                            <span className="text-body-color dark:text-white truncate">{file.name}</span>
+                            <span className={`px-2 py-1 rounded text-xs text-white flex-shrink-0 ${
+                              file.type === 'lidar' ? 'bg-blue-500' : file.type === 'imu' ? 'bg-green-500' : 'bg-purple-500'
+                            }`}>
+                              {file.type.toUpperCase()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -776,9 +1307,9 @@ const SensorGridSectionOne = () => {
                     </button>
                     <input
                       type="range"
-                      min={timeRange.start}
-                      max={timeRange.end}
-                      value={currentTime}
+                      min={getSafeTimeRange().start}
+                      max={getSafeTimeRange().end}
+                      value={getSafeCurrentTime()}
                       onChange={(e) => seekTo(parseFloat(e.target.value))}
                       className="w-32"
                     />
@@ -831,7 +1362,7 @@ const SensorGridSectionOne = () => {
                   {/* Time markers */}
                   <div className="absolute top-0 left-0 right-0 h-6 bg-gray-100 dark:bg-gray-600 border-b border-gray-300 dark:border-gray-500">
                     {Array.from({ length: 11 }, (_, i) => {
-                      const time = timelineStart + (i / 10) * (timelineEnd - timelineStart);
+                      const time = (isNaN(timelineStart) ? 0 : timelineStart) + (i / 10) * ((isNaN(timelineEnd) ? 100 : timelineEnd) - (isNaN(timelineStart) ? 0 : timelineStart));
                       return (
                         <div
                           key={i}
@@ -848,7 +1379,7 @@ const SensorGridSectionOne = () => {
                   <div
                     className="absolute top-6 w-0.5 h-full bg-red-500 z-10"
                     style={{
-                      left: `${((currentTime - timelineStart) / (timelineEnd - timelineStart)) * 100}%`
+                      left: `${((isNaN(currentTime) ? 0 : currentTime) - (isNaN(timelineStart) ? 0 : timelineStart)) / ((isNaN(timelineEnd) ? 100 : timelineEnd) - (isNaN(timelineStart) ? 0 : timelineStart)) * 100}%`
                     }}
                   />
                   
@@ -858,8 +1389,8 @@ const SensorGridSectionOne = () => {
                       key={label.id}
                       className="absolute top-8 h-4 bg-opacity-80 rounded cursor-pointer hover:bg-opacity-100 transition-opacity"
                       style={{
-                        left: `${((label.startTime - timelineStart) / (timelineEnd - timelineStart)) * 100}%`,
-                        width: `${((label.endTime - label.startTime) / (timelineEnd - timelineStart)) * 100}%`,
+                        left: `${((label.startTime - (isNaN(timelineStart) ? 0 : timelineStart)) / ((isNaN(timelineEnd) ? 100 : timelineEnd) - (isNaN(timelineStart) ? 0 : timelineStart))) * 100}%`,
+                        width: `${((label.endTime - label.startTime) / ((isNaN(timelineEnd) ? 100 : timelineEnd) - (isNaN(timelineStart) ? 0 : timelineStart))) * 100}%`,
                         backgroundColor: label.color,
                         minWidth: '4px'
                       }}
@@ -944,7 +1475,7 @@ const SensorGridSectionOne = () => {
                 </div>
               </div>
               <div className='mb-4 p-4 bg-white dark:bg-gray-800 runded-lg shadow-sm'>
-                <h4 className="text-lg font-semibold text-body-color dark:text-white mb-3">Labes Information</h4>
+                <h4 className="text-lg font-semibold text-body-color dark:text-white mb-3">Labels Information</h4>
                 <div className='justify-between flex'>
                   {/* Labels List */}
                   {labels.length > 0 && (
@@ -1136,25 +1667,94 @@ const SensorGridSectionOne = () => {
                   )}
                 </h4>
                 
-                <div className="w-full h-64 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 flex items-center justify-center">
-                  <div className="text-center text-gray-500 dark:text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <p className="text-sm">
-                      {selectedConfigurationName 
-                        ? `Configuration "${selectedConfigurationName}" loaded` 
-                        : 'Graph visualization will appear here'
-                      }
-                    </p>
-                    <p className="text-xs mt-1">
-                      {selectedConfigurationName 
-                        ? `${labels.length} labels loaded` 
-                        : 'Load configuration to see analysis results'
-                      }
-                    </p>
+                {sensorFiles.length > 0 ? (
+                  <div className="space-y-6">
+                    {/* Check if we have configuration files */}
+                    {sensorFiles.some(file => file.type === 'configuration') && (
+                      <div>
+                        <h5 className="text-md font-semibold text-body-color dark:text-white mb-3">Configuration Graphs</h5>
+                        <div className="max-h-96 overflow-y-auto">
+                          {renderConfigurationGraph()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Check if we have sensor data files */}
+                    {sensorFiles.some(file => file.type !== 'configuration') && (
+                      <div>
+                        <h5 className="text-md font-semibold text-body-color dark:text-white mb-3">Sensor Data Charts</h5>
+                        
+                        {/* Graph Controls */}
+                        <div className="flex flex-wrap items-center gap-4 mb-3">
+                          <div className="flex items-center space-x-2">
+                            <label className="text-sm text-gray-600 dark:text-gray-400">Chart Type:</label>
+                            <select
+                              value={selectedGraphType}
+                              onChange={(e) => setSelectedGraphType(e.target.value as 'line' | 'bar' | 'scatter')}
+                              className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                            >
+                              <option value="line">Line Chart</option>
+                              <option value="bar">Bar Chart</option>
+                              <option value="scatter">Scatter Plot</option>
+                            </select>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <label className="text-sm text-gray-600 dark:text-gray-400">Data Fields:</label>
+                            <select
+                              multiple
+                              value={selectedDataFields}
+                              onChange={(e) => {
+                                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                setSelectedDataFields(selected);
+                              }}
+                              className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm min-w-32 max-h-20"
+                            >
+                              {getAvailableDataFields().map(field => (
+                                <option key={field} value={field}>{field}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        
+                        {/* Chart Display */}
+                        <div className="w-full h-80 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 p-4">
+                          {renderChart()}
+                        </div>
+                        
+                        {/* Data Summary */}
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                          <div>Total Data Points: {getChartData().length}</div>
+                          <div>Time Range: {getChartData().length > 0 ? 
+                            `${getChartData()[0]?.timestamp.toFixed(1)}s - ${getChartData()[getChartData().length - 1]?.timestamp.toFixed(1)}s` : 
+                            'No data'
+                          }</div>
+                          <div>Selected Fields: {selectedDataFields.join(', ')}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="w-full h-64 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 flex items-center justify-center">
+                    <div className="text-center text-gray-500 dark:text-gray-400">
+                      <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <p className="text-sm">
+                        {selectedConfigurationName 
+                          ? `Configuration "${selectedConfigurationName}" loaded` 
+                          : 'Upload sensor data or configuration files to see visualization'
+                        }
+                      </p>
+                      <p className="text-xs mt-1">
+                        {selectedConfigurationName 
+                          ? `${labels.length} labels loaded` 
+                          : 'Support for CSV, JSON, and YAML files (sensor data or configurations)'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Robot Movement Simulation */}
@@ -1174,9 +1774,28 @@ const SensorGridSectionOne = () => {
                       ))}
                     </div>
                     
+                    {/* Movement path */}
+                    {robotMovements.length > 0 && (
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                        <path
+                          d={robotMovements.map((movement, index) => {
+                            if (index === 0) {
+                              return `M ${movement.fromPosition.x} ${movement.fromPosition.y}`;
+                            }
+                            return `L ${movement.fromPosition.x} ${movement.fromPosition.y}`;
+                          }).join(' ') + ` L ${robotMovements[robotMovements.length - 1]?.toPosition.x || 100} ${robotMovements[robotMovements.length - 1]?.toPosition.y || 100}`}
+                          stroke="#10B981"
+                          strokeWidth="2"
+                          fill="none"
+                          strokeDasharray="5,5"
+                          opacity="0.6"
+                        />
+                      </svg>
+                    )}
+                    
                     {/* Robot */}
                     <div
-                      className="absolute w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg transform transition-all duration-100 ease-out"
+                      className="absolute w-8 h-8 bg-blue-500 rounded-full border-2 border-white shadow-lg transform transition-all duration-100 ease-out"
                       style={{
                         left: `${robotPosition.x}px`,
                         top: `${robotPosition.y}px`,
@@ -1184,26 +1803,46 @@ const SensorGridSectionOne = () => {
                       }}
                     >
                       {/* Robot direction indicator */}
-                      <div className="absolute top-1/2 left-1/2 w-0 h-0 border-l-4 border-l-white border-t-2 border-t-transparent border-b-2 border-b-transparent transform -translate-x-1/2 -translate-y-1/2" />
+                      <div className="absolute top-1/2 left-1/2 w-0 h-0 border-l-6 border-l-white border-t-3 border-t-transparent border-b-3 border-b-transparent transform -translate-x-1/2 -translate-y-1/2" />
+                      
+                      {/* Robot body details */}
+                      <div className="absolute inset-1 bg-blue-400 rounded-full" />
+                      <div className="absolute top-1 left-1 w-1 h-1 bg-white rounded-full opacity-80" />
+                      <div className="absolute top-1 right-1 w-1 h-1 bg-white rounded-full opacity-80" />
                     </div>
                     
-                    {/* Movement path */}
+                    {/* Movement waypoints */}
                     {robotMovements.map((movement, index) => (
                       <div
                         key={movement.id}
-                        className="absolute w-1 h-1 bg-green-400 rounded-full"
+                        className="absolute w-2 h-2 bg-green-400 rounded-full border border-white shadow-sm"
                         style={{
                           left: `${movement.fromPosition.x}px`,
                           top: `${movement.fromPosition.y}px`,
                           transform: 'translate(-50%, -50%)'
                         }}
+                        title={`${index + 1}. ${getMovementDescription(movement.type, movement.value)}`}
                       />
                     ))}
                     
                     {/* Current movement indicator */}
                     {robotSimulationTime > 0 && (
-                      <div className="absolute text-xs text-gray-600 dark:text-gray-400 bottom-2 left-2">
+                      <div className="absolute text-xs text-gray-600 dark:text-gray-400 bottom-2 left-2 bg-white dark:bg-gray-800 px-2 py-1 rounded">
                         Time: {robotSimulationTime.toFixed(1)}s
+                      </div>
+                    )}
+                    
+                    {/* Current movement info */}
+                    {robotSimulationTime > 0 && (
+                      <div className="absolute text-xs text-gray-600 dark:text-gray-400 bottom-2 right-2 bg-white dark:bg-gray-800 px-2 py-1 rounded">
+                        {(() => {
+                          const currentMovement = robotMovements.find(m => 
+                            robotSimulationTime >= m.startTime && robotSimulationTime <= m.endTime
+                          );
+                          return currentMovement ? 
+                            `${getMovementDescription(currentMovement.type, currentMovement.value)}` : 
+                            'Idle';
+                        })()}
                       </div>
                     )}
                   </div>
@@ -1220,6 +1859,17 @@ const SensorGridSectionOne = () => {
                         }`}
                       >
                         {isRobotSimulationPlaying ? '⏹️ Stop' : '▶️ Start'}
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          const movements = generateRobotMovements(labels);
+                          setRobotMovements(movements);
+                          showToast('info', 'Movements Generated', `Generated ${movements.length} robot movements from ${labels.length} labels`);
+                        }}
+                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors"
+                      >
+                        🔄 Generate
                       </button>
                       
                       <select
@@ -1248,7 +1898,7 @@ const SensorGridSectionOne = () => {
                       {robotMovements.map((movement, index) => (
                         <div key={movement.id} className="flex items-center justify-between p-1 bg-gray-50 dark:bg-gray-700 rounded text-xs">
                           <span className="text-body-color dark:text-white">
-                            {index + 1}. {movement.type} ({movement.value})
+                            {index + 1}. {getMovementDescription(movement.type, movement.value)}
                           </span>
                           <span className="text-gray-500 dark:text-gray-400">
                             {movement.duration.toFixed(1)}s
@@ -1257,9 +1907,32 @@ const SensorGridSectionOne = () => {
                       ))}
                     </div>
                   )}
+                  
+                  {/* Debug Information */}
+                  <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                    <div className="text-gray-600 dark:text-gray-400">
+                      <div>Labels: {labels.length}</div>
+                      <div>Robot Movements: {robotMovements.length}</div>
+                      <div>Robot Categories: {[...new Set(labels.map(l => l.category))].join(', ')}</div>
+                      <div>Simulation Time: {robotSimulationTime.toFixed(1)}s</div>
+                      <div>Robot Position: ({robotPosition.x.toFixed(0)}, {robotPosition.y.toFixed(0)}, {robotPosition.angle.toFixed(0)}°)</div>
+                      {robotMovements.length > 0 && (
+                        <div className="mt-1">
+                          <div className="font-medium">Movement Details:</div>
+                          {robotMovements.slice(0, 3).map((movement, index) => (
+                            <div key={movement.id} className="ml-2">
+                              {index + 1}. {getMovementDescription(movement.type, movement.value)} ({movement.duration.toFixed(1)}s)
+                            </div>
+                          ))}
+                          {robotMovements.length > 3 && (
+                            <div className="ml-2 text-gray-500">... and {robotMovements.length - 3} more</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-
 
             </div>
           </div>
@@ -1269,4 +1942,4 @@ const SensorGridSectionOne = () => {
   );
 };
 
-export default SensorGridSectionOne; 
+export default SensorGridSectionOne;
