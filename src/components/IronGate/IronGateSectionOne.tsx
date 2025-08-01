@@ -152,14 +152,14 @@ const IronGateSectionOne = () => {
 
   // Graph analysis for loop detection and disconnected components
   const analyzeGraph = () => {
-    if (labels.length === 0 || connections.length === 0) {
+    if (labels.length === 0) {
       setLoopDetectionResult({
         hasLoop: false,
         loopPath: [],
-        message: "No labels or connections to analyze",
+        message: "No labels to analyze",
         hasDisconnectedComponents: false,
         disconnectedComponents: [],
-        disconnectedMessage: "No labels or connections to analyze"
+        disconnectedMessage: "No labels to analyze"
       });
       return;
     }
@@ -168,8 +168,17 @@ const IronGateSectionOne = () => {
     const disconnectedComponents = detectDisconnectedComponents();
     const hasDisconnectedComponents = disconnectedComponents.length > 1;
     
-    // Then, detect infinite loops
-    const loopResult = detectInfiniteLoopInternal();
+    // Then, detect infinite loops (only if there are connections)
+    let loopResult;
+    if (connections.length === 0) {
+      loopResult = {
+        hasLoop: false,
+        loopPath: [],
+        message: "✅ No connections found - no loops possible"
+      };
+    } else {
+      loopResult = detectInfiniteLoopInternal();
+    }
     
     // Combine results
     setLoopDetectionResult({
@@ -180,6 +189,8 @@ const IronGateSectionOne = () => {
       disconnectedComponents,
       disconnectedMessage: hasDisconnectedComponents 
         ? `⚠️ Found ${disconnectedComponents.length} disconnected components!` 
+        : connections.length === 0 
+        ? "ℹ️ No connections to analyze connectivity"
         : "✅ All components are connected."
     });
   };
