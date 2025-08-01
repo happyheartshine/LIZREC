@@ -284,7 +284,7 @@ const IronGateSectionOne = () => {
   const loadSavedConfigurations = async () => {
     setIsLoadingConfigurations(true);
     try {
-      const response = await fetch('http://localhost:8000/api/sentra-core/');
+      const response = await fetch('/api/sentra-core/');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -313,7 +313,7 @@ const IronGateSectionOne = () => {
 
     setIsLoadingConfiguration(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/sentra-core/${selectedConfigurationId}`);
+      const response = await fetch(`/api/sentra-core/${selectedConfigurationId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

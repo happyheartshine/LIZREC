@@ -737,7 +737,7 @@ const SensorGridSectionOne = () => {
   const loadSavedConfigurations = async () => {
     setIsLoadingConfigurations(true);
     try {
-      const response = await fetch('http://localhost:8000/api/sentra-core/');
+      const response = await fetch('/api/sentra-core/');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -776,7 +776,7 @@ const SensorGridSectionOne = () => {
     setIsLoadingConfiguration(true);
     try {
       console.log('Loading configuration with ID:', selectedConfigurationId);
-      const response = await fetch(`http://localhost:8000/api/sentra-core/${selectedConfigurationId}`);
+      const response = await fetch(`/api/sentra-core/${selectedConfigurationId}`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);

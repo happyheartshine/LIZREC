@@ -204,7 +204,7 @@ const SentraCoreSectionOne = () => {
   const loadSavedConfigurations = async () => {
     setIsLoadingConfigurations(true);
     try {
-      const response = await fetch('http://localhost:8000/api/sentra-core/');
+      const response = await fetch('/api/sentra-core/');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -242,7 +242,7 @@ const SentraCoreSectionOne = () => {
     setIsLoadingConfiguration(true);
     try {
       console.log('Loading configuration with ID:', selectedConfigurationId);
-      const response = await fetch(`http://localhost:8000/api/sentra-core/${selectedConfigurationId}`);
+      const response = await fetch(`/api/sentra-core/${selectedConfigurationId}`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
@@ -458,7 +458,7 @@ const SentraCoreSectionOne = () => {
       if (currentLoadedConfigurationId) {
         // Update existing configuration
         isUpdate = true;
-        response = await fetch(`http://localhost:8000/api/sentra-core/${currentLoadedConfigurationId}`, {
+        response = await fetch(`/api/sentra-core/${currentLoadedConfigurationId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -467,7 +467,7 @@ const SentraCoreSectionOne = () => {
         });
       } else {
         // Create new configuration
-        response = await fetch('http://localhost:8000/api/sentra-core/save-state/', {
+        response = await fetch('/api/sentra-core/save-state/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
