@@ -290,6 +290,118 @@ const SentraCoreSectionOne = () => {
     }
   };
 
+  const deleteConfiguration = async () => {
+    if (!selectedConfigurationId) {
+      showToast('error', 'Error', 'Please select a configuration to delete');
+      return;
+    }
+
+    // Show confirmation dialog
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete the configuration "${savedConfigurations.find(c => c.id === selectedConfigurationId)?.name}"? This action cannot be undone.`
+    );
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    try {
+      console.log('Deleting configuration with ID:', selectedConfigurationId);
+      const response = await fetch(`/api/sentra-core/${selectedConfigurationId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      console.log('Configuration deleted successfully');
+      showToast('success', 'Success', 'Configuration deleted successfully!');
+      
+      // Clear the selected configuration
+      setSelectedConfigurationId("");
+      
+      // If the deleted configuration was currently loaded, clear the workspace
+      if (currentLoadedConfigurationId === selectedConfigurationId) {
+        setCurrentLoadedConfigurationId(null);
+        setLabels([]);
+        setConnections([]);
+        setSelectedOption("option1");
+        setSelectedLabelId(null);
+        setEditingLabelId(null);
+        setConnectionMode(null);
+        setMoveMode(null);
+        setIsDragging(false);
+        setDragOffset({ x: 0, y: 0 });
+        setEditValue("");
+      }
+      
+      // Refresh the saved configurations list
+      await loadSavedConfigurations();
+      
+    } catch (error) {
+      console.error('Error deleting configuration:', error);
+      showToast('error', 'Error', 'Error deleting configuration. Please try again.');
+    }
+  };
+
+  const deleteCurrentConfiguration = async () => {
+    if (!currentLoadedConfigurationId) {
+      showToast('error', 'Error', 'No configuration is currently loaded');
+      return;
+    }
+
+    // Show confirmation dialog
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete the currently loaded configuration "${savedConfigurations.find(c => c.id === currentLoadedConfigurationId)?.name}"? This action cannot be undone.`
+    );
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    try {
+      console.log('Deleting current configuration with ID:', currentLoadedConfigurationId);
+      const response = await fetch(`/api/sentra-core/${currentLoadedConfigurationId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      console.log('Current configuration deleted successfully');
+      showToast('success', 'Success', 'Configuration deleted successfully!');
+      
+      // Clear the workspace
+      setCurrentLoadedConfigurationId(null);
+      setLabels([]);
+      setConnections([]);
+      setSelectedOption("option1");
+      setSelectedLabelId(null);
+      setEditingLabelId(null);
+      setConnectionMode(null);
+      setMoveMode(null);
+      setIsDragging(false);
+      setDragOffset({ x: 0, y: 0 });
+      setEditValue("");
+      
+      // Clear selected configuration if it was the same
+      if (selectedConfigurationId === currentLoadedConfigurationId) {
+        setSelectedConfigurationId("");
+      }
+      
+      // Refresh the saved configurations list
+      await loadSavedConfigurations();
+      
+    } catch (error) {
+      console.error('Error deleting current configuration:', error);
+      showToast('error', 'Error', 'Error deleting configuration. Please try again.');
+    }
+  };
+
   const actionCategories = [
     {
       id: "move",
@@ -945,30 +1057,47 @@ ${connections.map(connection => `  - id: "${connection.id}"
                         ))}
                       </select>
                       
-                      <button
-                        onClick={loadConfiguration}
-                        disabled={!selectedConfigurationId || isLoadingConfiguration}
-                        className="w-full px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm flex items-center justify-center space-x-2"
-                      >
-                        {isLoadingConfiguration ? (
-                          <>
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            <span>Loading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                              <polyline points="7,10 12,15 17,10" />
-                              <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                            <span>Load Configuration</span>
-                          </>
-                        )}
-                      </button>
+                      {/* Load and Delete buttons in one line */}
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={loadConfiguration}
+                          disabled={!selectedConfigurationId || isLoadingConfiguration}
+                          className="flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm flex items-center justify-center space-x-2"
+                        >
+                          {isLoadingConfiguration ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              <span>Loading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7,10 12,15 17,10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                              <span>Load</span>
+                            </>
+                          )}
+                        </button>
+                        
+                        {/* Delete button for selected configuration */}
+                        <button
+                          onClick={deleteConfiguration}
+                          disabled={!selectedConfigurationId || isLoadingConfiguration}
+                          className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm flex items-center justify-center space-x-2 border border-red-400/30"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <line x1="10" x2="10" y1="11" y2="17" />
+                            <line x1="14" x2="14" y1="11" y2="17" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      </div>
                       
                       {savedConfigurations.length === 0 && !isLoadingConfigurations && (
                         <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-2">
